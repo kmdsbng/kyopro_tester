@@ -1,0 +1,167 @@
+#!/Users/kameda/.anyenv/envs/rbenv/shims/ruby
+# * 事前にspec.txt に入力値、回答値を書いておく。
+# * このスクリプトがspec.txt を読み込んで、inputN.txt, expectN.txt に出力する
+# * 次に main.kt をコンパイルして実行し、入力値を渡して実行し、回答値と一致してるか検証する。
+# * 一致してなければ違いを出力する。
+
+class Spec
+  attr_reader :inputs, :expects
+
+  def initialize
+    @inputs = []
+    @expects = []
+  end
+
+  def add_input(input)
+    @inputs << input
+  end
+
+  def add_expect(expect)
+    @expects << expect
+  end
+
+  def each
+    @inputs.each_with_index {|input, i|
+      yield([input, @expects[i], i + 1])
+    }
+  end
+
+end
+
+class SpecParser
+
+  def parse(lines)
+    spec = Spec.new
+
+    is_input = true
+    cur_lines = nil
+
+    lines.each {|line|
+      if line == '>>>>>'
+        if cur_lines.nil?
+        else
+          add_content(spec, is_input, cur_lines)
+        end
+        cur_lines = []
+        is_input = true
+      elsif line == '-----'
+        add_content(spec, is_input, cur_lines)
+        cur_lines = []
+        is_input = false
+      else
+        cur_lines << line
+      end
+    }
+
+    unless is_input
+      add_content(spec, is_input, cur_lines)
+    end
+
+    return spec
+  end
+
+  def add_content(spec, is_input, lines)
+    if is_input
+      spec.add_input(to_content(lines))
+    else
+      spec.add_expect(to_content(lines))
+    end
+  end
+
+  def to_content(lines)
+    return lines.map {|l| l + "\n"}.join()
+  end
+
+end
+
+def save_spec
+  fname = "spec.txt"
+  unless File.exist?(fname)
+    return
+  end
+
+  lines = File.readlines(fname).map(&:chomp)
+  spec = SpecParser.new.parse(lines)
+
+  spec.each {|input, expect, i|
+    input_fname = "input#{i}.txt"
+    open(input_fname, 'w') {|f|
+      f.write(input)
+    }
+
+    expect_fname = "expect#{i}.txt"
+    open(expect_fname, 'w') {|f|
+      f.write(expect)
+    }
+  }
+end
+
+def execute_test
+  input_contents = []
+
+  i = 0
+
+  while true
+    i += 1
+
+    fname = "input#{i}.txt"
+    if File.exist?(fname)
+      input_contents << File.read(fname)
+    else
+      break
+    end
+  end
+
+  if input_contents.empty?
+    puts "input1.txt not found"
+    exit
+  end
+
+  expect_contents = []
+
+  input_contents.each_with_index {|_, i|
+    no = i + 1
+    fname = "expect#{no}.txt"
+    if !File.exist?(fname)
+      puts "#{fname} not found"
+      exit
+    end
+
+    expect_contents << File.read(fname)
+  }
+
+
+  # compile
+  `kotlinc main.kt -include-runtime -d main.jar`
+
+  input_contents.each_with_index {|input_content, i|
+    no = i + 1
+    `java -jar main.jar < input#{no}.txt > out#{no}.txt`
+
+    out_content = File.read("out#{no}.txt")
+
+    if expect_contents[i] == out_content
+      puts "input#{no} ok"
+    else
+      puts "!! input#{no} ng"
+      puts
+      puts "--- expect#{no}.txt ---"
+      print expect_contents[i]
+      puts "------"
+      puts
+      puts "--- out#{no}.txt ---"
+      print out_content
+      puts "------"
+
+      exit
+    end
+  }
+end
+
+def main
+  save_spec()
+  execute_test()
+end
+
+main
+
