@@ -1,0 +1,48 @@
+#!/Users/kameda/.anyenv/envs/rbenv/shims/ruby
+
+def create_dirs(dirs)
+  `mkdir -p src`
+
+  dirs.each {|dir|
+    `mkdir -p src/#{dir}`
+
+    unless File.exist?("src/#{dir}/spec.txt")
+      open("src/#{dir}/spec.txt", "w") {|f|
+        data = <<-EOS
+>>>>>
+1
+-----
+2
+>>>>>
+2
+-----
+4
+EOS
+        f.write(data)
+      }
+    end
+
+    unless File.exist?("src/#{dir}/main.kt")
+      open("src/#{dir}/main.kt", "w") {|f|
+        data = <<-EOS
+package #{dir}
+
+fun main(args: Array<String>) {
+    val line = readLine()!!.trim()
+    val n = line.toInt()
+
+    println("${n * 2}")
+}
+EOS
+        f.write(data)
+      }
+    end
+  }
+end
+
+def main
+  create_dirs(ARGV)
+end
+
+main
+
